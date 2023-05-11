@@ -8,6 +8,8 @@ import {
   NShiftServicesRpc,
   PaymentTermsService,
   IncotermsService,
+  ShipmentsService,
+  CreateShipmentDto,
 } from '@app/common';
 import {
   Controller,
@@ -56,6 +58,7 @@ import { JwtService } from '@nestjs/jwt';
 import { AddressTypeEnum, ShipmentRpcDto, tenant } from '@app/skipum';
 //import { NShiftException } from '@app/nshift-types';
 import { ServicesService } from '@app/common';
+import { ShipunitsService } from '@app/common/modules/shipunits/shipunits.service';
 
 @Controller()
 @ApiBearerAuth()
@@ -67,6 +70,8 @@ export class ApiController {
     private readonly servicesService: ServicesService,
     private readonly shippersService: ShippersService,
     private readonly paymentTermsService: PaymentTermsService,
+    private readonly shipmentsService: ShipmentsService,
+    private readonly shipunitsService: ShipunitsService,
   ) {
     this.logger = new Logger('ApiController') as Logger;
   }
@@ -444,6 +449,8 @@ export class ApiController {
 
     // Persist Shipment to DB
     // TODO: Persist shippedShipment.ShipmentEntity to DB here
+    const shipmentData = shippedShipment.ShipmentEntity as CreateShipmentDto;
+    this.shipmentsService.create(shipmentData);
 
     return {
       ErrorCode: '0',
@@ -476,20 +483,6 @@ export class ApiController {
     // Adapter Module
     const shipment = await this.apiService.normalizeShipRequest(shipRequestRpcDto);
 
-    /*
-    const shipper = await this.shippersService.findByCode(shipment.Shipper_code);
-
-    // If Goods Origin Partner is not found, add Shipper as Goods Origin Partner
-    const GoodsOriginPartner = this.apiService.getPartner(AddressTypeEnum.GoodsOrigin, shipment.toPartners);
-    if (!GoodsOriginPartner) {
-      const shipperPartner = this.apiService.getPartner(AddressTypeEnum.GoodsOrigin, shipper.toAddress);
-      if (shipperPartner) {
-        shipment.toPartners.push(shipperPartner);
-        this.logger.debug('Shipper Found and Partner Added', JSON.stringify(shipperPartner));
-      }
-    }
-    */
-
     // ******************************************************
     // ******************************************************
     // Ship Shipment via NShift Engine
@@ -497,6 +490,10 @@ export class ApiController {
     const submitShipmentMessage = messageRpc as SubmitShipmentRpc;
     submitShipmentMessage.Shipment = shipment;
     const shippedShipment = await this.apiService.submitNShiftShipment(submitShipmentMessage);
+
+    //Persist Shipment identifiers to DB
+    const shipmentData = shippedShipment.ShipmentEntity as CreateShipmentDto;
+    this.shipmentsService.create(shipmentData);
 
     // ******************************************************
     // Normalize Ship Response
